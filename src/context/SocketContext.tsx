@@ -22,7 +22,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     try {
-      const socketInstance = io('http://localhost:3001', {
+      const socketInstance = io('https://imposter-game-0t5h.onrender.com', {
         reconnection: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,

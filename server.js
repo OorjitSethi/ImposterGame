@@ -1,110 +1,83 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+    origin: ["https://movie-imposter.onrender.com", "http://localhost:5173"],
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
+// Serve static files from the dist directory
+app.use(express.static(join(__dirname, 'dist')));
+
+// Store active games
 const games = new Map();
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  socket.on('createGame', ({ numPlayers, numImposters }) => {
-    const gameId = uuidv4().slice(0, 6);
-    const movies = [
-      'The Shawshank Redemption',
-      'The Godfather',
-      'The Dark Knight',
-      'Pulp Fiction',
-      'Forrest Gump',
-      'Inception',
-      'The Matrix',
-      'Goodfellas',
-      'The Silence of the Lambs',
-      'Fight Club'
-    ];
-    
-    const imposterMovie = movies[Math.floor(Math.random() * movies.length)];
-    const normalMovie = movies.filter(m => m !== imposterMovie)[Math.floor(Math.random() * (movies.length - 1))];
-    
-    const game = {
-      id: gameId,
-      players: [],
-      numPlayers,
-      numImposters,
-      imposterMovie,
-      normalMovie,
-      votes: {},
-      started: false
-    };
-    
-    games.set(gameId, game);
-    socket.emit('gameCreated', { gameId, game });
+  socket.on('createGame', (callback) => {
+    const gameId = uuidv4();
+    games.set(gameId, {
+      players: [{
+        id: socket.id,
+        name: 'Host',
+        isHost: true
+      }],
+      status: 'waiting',
+      currentRound: 0,
+      rounds: []
+    });
+    socket.join(gameId);
+    callback({ gameId });
   });
 
-  socket.on('joinGame', ({ gameId, playerName }) => {
+  socket.on('joinGame', ({ gameId, playerName }, callback) => {
     const game = games.get(gameId);
     if (!game) {
-      socket.emit('error', 'Game not found');
+      callback({ error: 'Game not found' });
       return;
     }
-
-    if (game.players.length >= game.numPlayers) {
-      socket.emit('error', 'Game is full');
+    if (game.status !== 'waiting') {
+      callback({ error: 'Game already in progress' });
       return;
     }
-
-    const player = {
+    if (game.players.length >= 8) {
+      callback({ error: 'Game is full' });
+      return;
+    }
+    game.players.push({
       id: socket.id,
       name: playerName,
-      isImposter: game.players.length < game.numImposters,
-      movie: game.players.length < game.numImposters ? game.imposterMovie : game.normalMovie
-    };
-
-    game.players.push(player);
+      isHost: false
+    });
     socket.join(gameId);
-    io.to(gameId).emit('playerJoined', { players: game.players });
-
-    if (game.players.length === game.numPlayers) {
-      io.to(gameId).emit('gameStarted', { players: game.players });
-      game.started = true;
-    }
+    io.to(gameId).emit('gameState', game);
+    callback({ success: true });
   });
 
-  socket.on('vote', ({ gameId, votedForId }) => {
+  socket.on('startGame', ({ gameId }) => {
     const game = games.get(gameId);
-    if (!game || !game.started) return;
-
-    game.votes[socket.id] = votedForId;
-    io.to(gameId).emit('voteCast', { votes: game.votes });
-
-    if (Object.keys(game.votes).length === game.players.length) {
-      const voteCount = {};
-      Object.values(game.votes).forEach(id => {
-        voteCount[id] = (voteCount[id] || 0) + 1;
-      });
-
-      const maxVotes = Math.max(...Object.values(voteCount));
-      const eliminated = Object.entries(voteCount)
-        .filter(([_, count]) => count === maxVotes)
-        .map(([id]) => id);
-
-      io.to(gameId).emit('gameOver', {
-        eliminated,
-        wasImposter: game.players.find(p => p.id === eliminated[0])?.isImposter
-      });
+    if (game) {
+      game.status = 'playing';
+      io.to(gameId).emit('gameState', game);
     }
   });
 
   socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+    // Handle player disconnection
     games.forEach((game, gameId) => {
       const playerIndex = game.players.findIndex(p => p.id === socket.id);
       if (playerIndex !== -1) {
@@ -112,7 +85,7 @@ io.on('connection', (socket) => {
         if (game.players.length === 0) {
           games.delete(gameId);
         } else {
-          io.to(gameId).emit('playerLeft', { players: game.players });
+          io.to(gameId).emit('gameState', game);
         }
       }
     });
