@@ -21,6 +21,11 @@ const io = new Server(httpServer, {
 // Serve static files from the dist directory
 app.use(express.static(join(__dirname, 'dist')));
 
+// Handle client-side routing - serve index.html for all routes
+app.get('*', (req, res) => {
+  res.sendFile(join(__dirname, 'dist', 'index.html'));
+});
+
 // Store active games
 const games = new Map();
 

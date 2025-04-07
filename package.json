@@ -1,12 +1,11 @@
 {
-  "name": "movie-imposter-game",
+  "name": "movie-imposter",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "start": "node server.js"
   },
@@ -28,13 +27,7 @@
   },
   "devDependencies": {
     "@types/react": "^18.2.55",
-    "@types/react-dom": "^18.2.19",
-    "@types/uuid": "^9.0.8",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
-    "eslint": "^8.56.0",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "eslint-plugin-react-refresh": "^0.4.5"
+    "@types/react-dom": "^18.2.19"
   },
   "engines": {
     "node": ">=18.0.0"

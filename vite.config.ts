@@ -5,9 +5,10 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
+    port: 5173,
     proxy: {
       '/socket.io': {
-        target: 'http://localhost:3001',
+        target: 'https://imposter-game-0t5h.onrender.com',
         ws: true,
       },
     },
@@ -15,5 +16,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: undefined
+      }
+    }
   },
 })
