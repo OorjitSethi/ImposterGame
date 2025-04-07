@@ -22,7 +22,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     try {
-      const socketInstance = io('https://imposter-game-0t5h.onrender.com', {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://imposter-game-0t5h.onrender.com';
+      const socketInstance = io(backendUrl, {
         reconnection: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,

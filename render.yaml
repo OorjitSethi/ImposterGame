@@ -1,11 +1,19 @@
 services:
   - type: web
-    name: movie-imposter
+    name: movie-imposter-backend
     env: node
-    buildCommand: npm install && npm run build
+    buildCommand: npm install
     startCommand: node server.js
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 3001 
+        value: 3001
+
+  - type: static
+    name: movie-imposter-frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_BACKEND_URL
+        value: https://imposter-game-0t5h.onrender.com 
