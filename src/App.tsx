@@ -2,6 +2,7 @@ import { ChakraProvider, Box, Container, Alert, AlertIcon, AlertTitle, AlertDesc
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Home, Game } from './components';
 import { SocketProvider, useSocket } from './context/SocketContext';
+import io from 'socket.io-client';
 
 // Create a custom theme
 const theme = extendTheme({
@@ -48,6 +49,10 @@ const ConnectionStatus = () => {
 };
 
 function App() {
+  const socketInstance = io(
+    import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'
+  );
+
   return (
     <ChakraProvider theme={theme}>
       <SocketProvider>
