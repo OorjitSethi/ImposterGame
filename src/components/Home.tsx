@@ -1,37 +1,30 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useSocket } from '../context/SocketContext';
 import {
   Box,
   Button,
+  Container,
   FormControl,
   FormLabel,
+  Heading,
   Input,
   VStack,
-  HStack,
-  Heading,
   Text,
-  useToast,
-  NumberInput,
-  NumberInputField,
-  NumberInputStepper,
-  NumberIncrementStepper,
-  NumberDecrementStepper,
-  Container,
-  Divider,
+  useToast
 } from '@chakra-ui/react';
-import { useNavigate } from 'react-router-dom';
-import { useSocket } from '../context/SocketContext';
 
-const Home: React.FC = () => {
+export const Home: React.FC = () => {
+  const [gameId, setGameId] = useState('');
   const [playerName, setPlayerName] = useState('');
-  const [gameCode, setGameCode] = useState('');
-  const [numPlayers, setNumPlayers] = useState(5);
-  const [numImposters, setNumImposters] = useState(1);
-  const { socket } = useSocket();
+  const [isCreating, setIsCreating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
   const navigate = useNavigate();
+  const { socket, isConnected, error } = useSocket();
   const toast = useToast();
 
-  const createGame = () => {
-    if (!playerName) {
+  const handleCreateGame = () => {
+    if (!playerName.trim()) {
       toast({
         title: 'Error',
         description: 'Please enter your name',
@@ -42,14 +35,28 @@ const Home: React.FC = () => {
       return;
     }
 
-    socket?.emit('createGame', { numPlayers, numImposters });
+    setIsCreating(true);
+    socket?.emit('createGame', (response: { gameId: string; error?: string }) => {
+      setIsCreating(false);
+      if (response.error) {
+        toast({
+          title: 'Error',
+          description: response.error,
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+      navigate(`/game/${response.gameId}`);
+    });
   };
 
-  const joinGame = () => {
-    if (!playerName || !gameCode) {
+  const handleJoinGame = () => {
+    if (!gameId.trim() || !playerName.trim()) {
       toast({
         title: 'Error',
-        description: 'Please enter both your name and game code',
+        description: 'Please enter both game ID and your name',
         status: 'error',
         duration: 3000,
         isClosable: true,
@@ -57,117 +64,87 @@ const Home: React.FC = () => {
       return;
     }
 
-    socket?.emit('joinGame', { gameId: gameCode, playerName });
-  };
-
-  React.useEffect(() => {
-    if (!socket) return;
-
-    socket.on('gameCreated', ({ gameId }) => {
-      socket.emit('joinGame', { gameId, playerName });
+    setIsJoining(true);
+    socket?.emit('joinGame', { gameId, playerName }, (response: { success?: boolean; error?: string }) => {
+      setIsJoining(false);
+      if (response.error) {
+        toast({
+          title: 'Error',
+          description: response.error,
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
       navigate(`/game/${gameId}`);
     });
+  };
 
-    socket.on('error', (message) => {
-      toast({
-        title: 'Error',
-        description: message,
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-    });
-
-    return () => {
-      socket.off('gameCreated');
-      socket.off('error');
-    };
-  }, [socket, navigate, toast, playerName]);
+  if (error) {
+    return (
+      <Container centerContent py={10}>
+        <Box p={8} maxWidth="500px" borderWidth={1} borderRadius={8} boxShadow="lg">
+          <VStack spacing={4}>
+            <Heading>Connection Error</Heading>
+            <Text color="red.500">{error}</Text>
+            <Button onClick={() => window.location.reload()}>Retry Connection</Button>
+          </VStack>
+        </Box>
+      </Container>
+    );
+  }
 
   return (
-    <Container maxW="container.lg" py={8}>
-      <VStack spacing={8} align="stretch">
-        <Box textAlign="center" mb={4}>
-          <Heading size="xl">Movie Imposter Game</Heading>
-          <Text fontSize="lg" mt={2}>Create or join a game to start playing!</Text>
-        </Box>
+    <Container centerContent py={10}>
+      <Box p={8} maxWidth="500px" borderWidth={1} borderRadius={8} boxShadow="lg">
+        <VStack spacing={4}>
+          <Heading>Movie Imposter</Heading>
+          <Text>Test your movie knowledge and find the imposters!</Text>
+          
+          <FormControl isRequired>
+            <FormLabel>Your Name</FormLabel>
+            <Input
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+              placeholder="Enter your name"
+            />
+          </FormControl>
 
-        <FormControl mb={6}>
-          <FormLabel fontSize="lg">Your Name</FormLabel>
-          <Input
-            value={playerName}
-            onChange={(e) => setPlayerName(e.target.value)}
-            placeholder="Enter your name"
-            size="lg"
-          />
-        </FormControl>
+          <Button
+            colorScheme="blue"
+            width="full"
+            onClick={handleCreateGame}
+            isLoading={isCreating}
+            loadingText="Creating..."
+            isDisabled={!isConnected}
+          >
+            Create New Game
+          </Button>
 
-        <HStack spacing={8} align="start">
-          <Box flex="1" p={6} borderWidth={1} borderRadius="lg" boxShadow="md">
-            <VStack spacing={4} align="stretch">
-              <Heading size="md" textAlign="center">Create Game</Heading>
-              <FormControl>
-                <FormLabel>Number of Players</FormLabel>
-                <NumberInput
-                  value={numPlayers}
-                  onChange={(_, value) => setNumPlayers(value)}
-                  min={3}
-                  max={10}
-                >
-                  <NumberInputField />
-                  <NumberInputStepper>
-                    <NumberIncrementStepper />
-                    <NumberDecrementStepper />
-                  </NumberInputStepper>
-                </NumberInput>
-              </FormControl>
+          <Text>or</Text>
 
-              <FormControl>
-                <FormLabel>Number of Imposters</FormLabel>
-                <NumberInput
-                  value={numImposters}
-                  onChange={(_, value) => setNumImposters(value)}
-                  min={1}
-                  max={Math.floor(numPlayers / 2)}
-                >
-                  <NumberInputField />
-                  <NumberInputStepper>
-                    <NumberIncrementStepper />
-                    <NumberDecrementStepper />
-                  </NumberInputStepper>
-                </NumberInput>
-              </FormControl>
+          <FormControl>
+            <FormLabel>Game ID</FormLabel>
+            <Input
+              value={gameId}
+              onChange={(e) => setGameId(e.target.value)}
+              placeholder="Enter game ID"
+            />
+          </FormControl>
 
-              <Button colorScheme="blue" onClick={createGame} size="lg" mt={4}>
-                Create Game
-              </Button>
-            </VStack>
-          </Box>
-
-          <Divider orientation="vertical" h="auto" />
-
-          <Box flex="1" p={6} borderWidth={1} borderRadius="lg" boxShadow="md">
-            <VStack spacing={4} align="stretch">
-              <Heading size="md" textAlign="center">Join Game</Heading>
-              <FormControl>
-                <FormLabel>Game Code</FormLabel>
-                <Input
-                  value={gameCode}
-                  onChange={(e) => setGameCode(e.target.value)}
-                  placeholder="Enter game code"
-                  size="lg"
-                />
-              </FormControl>
-
-              <Button colorScheme="green" onClick={joinGame} size="lg" mt={4}>
-                Join Game
-              </Button>
-            </VStack>
-          </Box>
-        </HStack>
-      </VStack>
+          <Button
+            colorScheme="green"
+            width="full"
+            onClick={handleJoinGame}
+            isLoading={isJoining}
+            loadingText="Joining..."
+            isDisabled={!isConnected}
+          >
+            Join Game
+          </Button>
+        </VStack>
+      </Box>
     </Container>
   );
-};
-
-export default Home; 
+}; 

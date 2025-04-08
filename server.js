@@ -37,50 +37,93 @@ io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   socket.on('createGame', (callback) => {
-    const gameId = uuidv4();
-    games.set(gameId, {
-      players: [{
-        id: socket.id,
-        name: 'Host',
-        isHost: true
-      }],
-      status: 'waiting',
-      currentRound: 0,
-      rounds: []
-    });
-    socket.join(gameId);
-    callback({ gameId });
+    try {
+      const gameId = uuidv4();
+      games.set(gameId, {
+        players: [{
+          id: socket.id,
+          name: 'Host',
+          isHost: true
+        }],
+        status: 'waiting',
+        currentRound: 0,
+        rounds: []
+      });
+      socket.join(gameId);
+      if (typeof callback === 'function') {
+        callback({ gameId });
+      } else {
+        socket.emit('gameCreated', { gameId });
+      }
+    } catch (error) {
+      console.error('Error creating game:', error);
+      if (typeof callback === 'function') {
+        callback({ error: 'Failed to create game' });
+      } else {
+        socket.emit('error', { message: 'Failed to create game' });
+      }
+    }
   });
 
   socket.on('joinGame', ({ gameId, playerName }, callback) => {
-    const game = games.get(gameId);
-    if (!game) {
-      callback({ error: 'Game not found' });
-      return;
+    try {
+      const game = games.get(gameId);
+      if (!game) {
+        if (typeof callback === 'function') {
+          callback({ error: 'Game not found' });
+        } else {
+          socket.emit('error', { message: 'Game not found' });
+        }
+        return;
+      }
+      if (game.status !== 'waiting') {
+        if (typeof callback === 'function') {
+          callback({ error: 'Game already in progress' });
+        } else {
+          socket.emit('error', { message: 'Game already in progress' });
+        }
+        return;
+      }
+      if (game.players.length >= 8) {
+        if (typeof callback === 'function') {
+          callback({ error: 'Game is full' });
+        } else {
+          socket.emit('error', { message: 'Game is full' });
+        }
+        return;
+      }
+      game.players.push({
+        id: socket.id,
+        name: playerName,
+        isHost: false
+      });
+      socket.join(gameId);
+      io.to(gameId).emit('gameState', game);
+      if (typeof callback === 'function') {
+        callback({ success: true });
+      } else {
+        socket.emit('gameJoined', { success: true });
+      }
+    } catch (error) {
+      console.error('Error joining game:', error);
+      if (typeof callback === 'function') {
+        callback({ error: 'Failed to join game' });
+      } else {
+        socket.emit('error', { message: 'Failed to join game' });
+      }
     }
-    if (game.status !== 'waiting') {
-      callback({ error: 'Game already in progress' });
-      return;
-    }
-    if (game.players.length >= 8) {
-      callback({ error: 'Game is full' });
-      return;
-    }
-    game.players.push({
-      id: socket.id,
-      name: playerName,
-      isHost: false
-    });
-    socket.join(gameId);
-    io.to(gameId).emit('gameState', game);
-    callback({ success: true });
   });
 
   socket.on('startGame', ({ gameId }) => {
-    const game = games.get(gameId);
-    if (game) {
-      game.status = 'playing';
-      io.to(gameId).emit('gameState', game);
+    try {
+      const game = games.get(gameId);
+      if (game) {
+        game.status = 'playing';
+        io.to(gameId).emit('gameState', game);
+      }
+    } catch (error) {
+      console.error('Error starting game:', error);
+      socket.emit('error', { message: 'Failed to start game' });
     }
   });
 
