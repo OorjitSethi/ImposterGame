@@ -10,12 +10,16 @@ const __dirname = dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
+
+// Configure CORS for both HTTP and WebSocket
 const io = new Server(httpServer, {
   cors: {
-    origin: ["https://movie-imposter.onrender.com", "http://localhost:5173"],
+    origin: ["https://movie-imposter-frontend.onrender.com", "http://localhost:5173"],
     methods: ["GET", "POST"],
-    credentials: true
-  }
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
+  },
+  transports: ['websocket', 'polling']
 });
 
 // Serve static files from the dist directory
@@ -100,4 +104,5 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`WebSocket server is ready for connections`);
 }); 

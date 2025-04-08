@@ -23,36 +23,49 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     try {
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://imposter-game-0t5h.onrender.com';
+      console.log('Connecting to backend at:', backendUrl);
+      
       const socketInstance = io(backendUrl, {
         reconnection: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,
+        transports: ['websocket', 'polling'],
+        timeout: 10000,
+        forceNew: true
       });
 
       socketInstance.on('connect', () => {
         setIsConnected(true);
         setError(null);
-        console.log('Connected to server');
+        console.log('Successfully connected to server');
       });
 
       socketInstance.on('connect_error', (err) => {
         setIsConnected(false);
-        setError('Failed to connect to server. Please make sure the server is running.');
-        console.error('Connection error:', err);
+        const errorMessage = `Connection error: ${err.message}. Please check if the server is running at ${backendUrl}`;
+        setError(errorMessage);
+        console.error('Connection error details:', err);
       });
 
-      socketInstance.on('disconnect', () => {
+      socketInstance.on('disconnect', (reason) => {
         setIsConnected(false);
-        console.log('Disconnected from server');
+        console.log('Disconnected from server. Reason:', reason);
+      });
+
+      socketInstance.on('error', (err) => {
+        console.error('Socket error:', err);
+        setError(`Socket error: ${err.message}`);
       });
 
       setSocket(socketInstance);
 
       return () => {
+        console.log('Cleaning up socket connection');
         socketInstance.disconnect();
       };
     } catch (err) {
-      setError('Failed to initialize socket connection');
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(`Failed to initialize socket connection: ${errorMessage}`);
       console.error('Socket initialization error:', err);
     }
   }, []);
