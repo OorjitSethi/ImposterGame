@@ -114,6 +114,33 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('getGameState', ({ gameId }, callback) => {
+    try {
+      console.log('getGameState requested for game:', gameId);
+      const game = games.get(gameId);
+      if (!game) {
+        if (typeof callback === 'function') {
+          callback({ error: 'Game not found' });
+        } else {
+          socket.emit('error', { message: 'Game not found' });
+        }
+        return;
+      }
+      if (typeof callback === 'function') {
+        callback({ gameState: game });
+      } else {
+        socket.emit('gameState', game);
+      }
+    } catch (error) {
+      console.error('Error getting game state:', error);
+      if (typeof callback === 'function') {
+        callback({ error: 'Failed to get game state' });
+      } else {
+        socket.emit('error', { message: 'Failed to get game state' });
+      }
+    }
+  });
+
   socket.on('startGame', ({ gameId }) => {
     try {
       const game = games.get(gameId);

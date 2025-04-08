@@ -23,8 +23,14 @@ import { useSocket } from '../context/SocketContext';
 interface Player {
   id: string;
   name: string;
-  isImposter: boolean;
-  movie: string;
+  isHost: boolean;
+}
+
+interface GameState {
+  players: Player[];
+  status: 'waiting' | 'playing';
+  currentRound: number;
+  rounds: any[];
 }
 
 export const Game: React.FC = () => {
@@ -34,44 +40,53 @@ export const Game: React.FC = () => {
   const toast = useToast();
   
   const [players, setPlayers] = useState<Player[]>([]);
-  const [myMovie, setMyMovie] = useState<string>('');
   const [gameStarted, setGameStarted] = useState(false);
   const [votedFor, setVotedFor] = useState<string | null>(null);
   const [gameOver, setGameOver] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !gameId) return;
 
-    socket.on('playerJoined', ({ players }: { players: Player[] }) => {
-      setPlayers(players);
+    console.log('Setting up socket listeners for game:', gameId);
+    
+    // Listen for gameState updates
+    socket.on('gameState', (gameState: GameState) => {
+      console.log('Received gameState:', gameState);
+      setPlayers(gameState.players);
+      setGameStarted(gameState.status === 'playing');
     });
 
-    socket.on('gameStarted', ({ players }: { players: Player[] }) => {
-      setPlayers(players);
-      setGameStarted(true);
-      const currentPlayer = players.find((p: Player) => p.id === socket.id);
-      if (currentPlayer) {
-        setMyMovie(currentPlayer.movie);
+    // Request current game state
+    socket.emit('getGameState', { gameId }, (response: { gameState?: GameState; error?: string }) => {
+      if (response.error) {
+        console.error('Error getting game state:', response.error);
+        toast({
+          title: 'Error',
+          description: response.error,
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+      if (response.gameState) {
+        console.log('Received initial game state:', response.gameState);
+        setPlayers(response.gameState.players);
+        setGameStarted(response.gameState.status === 'playing');
       }
     });
 
-    socket.on('voteCast', ({ votes }: { votes: Record<string, string> }) => {
-      // Update UI to show who has voted
-    });
-
-    socket.on('gameOver', ({ eliminated, wasImposter }: { eliminated: string[], wasImposter: boolean }) => {
-      setGameOver(true);
-      setWinner(wasImposter ? 'Imposter' : 'Crewmates');
-    });
-
     return () => {
-      socket.off('playerJoined');
-      socket.off('gameStarted');
-      socket.off('voteCast');
-      socket.off('gameOver');
+      console.log('Cleaning up socket listeners');
+      socket.off('gameState');
     };
-  }, [socket]);
+  }, [socket, gameId, toast]);
+
+  const handleStartGame = () => {
+    if (!socket || !gameId) return;
+    socket.emit('startGame', { gameId });
+  };
 
   const handleVote = (playerId: string) => {
     if (votedFor) return;
@@ -110,12 +125,12 @@ export const Game: React.FC = () => {
             <GridItem>
               <Box p={6} borderWidth={1} borderRadius="lg" boxShadow="md" h="100%">
                 <VStack spacing={4} align="stretch">
-                  <Heading size="md">Your Movie</Heading>
+                  <Heading size="md">Game Status</Heading>
                   <Text fontSize="xl" fontWeight="bold" p={4} bg="blue.50" borderRadius="md">
-                    {myMovie}
+                    Game in progress
                   </Text>
                   <Text fontSize="sm" color="gray.600">
-                    Discuss this movie with other players to try to identify the imposter!
+                    Discuss with other players to identify the imposters!
                   </Text>
                 </VStack>
               </Box>
@@ -138,8 +153,8 @@ export const Game: React.FC = () => {
                           <VStack align="stretch" spacing={2}>
                             <Flex justify="space-between" align="center">
                               <Text fontWeight="bold">{player.name}</Text>
-                              <Badge colorScheme={player.isImposter ? 'red' : 'green'}>
-                                {player.isImposter ? 'Imposter' : 'Crewmate'}
+                              <Badge colorScheme={player.isHost ? 'purple' : 'green'}>
+                                {player.isHost ? 'Host' : 'Player'}
                               </Badge>
                             </Flex>
                             {!votedFor && player.id !== socket?.id && (
@@ -169,6 +184,11 @@ export const Game: React.FC = () => {
               <Heading size="md">Waiting for players to join...</Heading>
               <Text>Share the game code with your friends: <Text as="span" fontWeight="bold">{gameId}</Text></Text>
               <Text>Players joined: {players.length}</Text>
+              {players.length >= 2 && (
+                <Button colorScheme="green" size="lg" onClick={handleStartGame}>
+                  Start Game
+                </Button>
+              )}
             </VStack>
           </Box>
         )}
