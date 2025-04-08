@@ -27,7 +27,7 @@ interface Player {
   movie: string;
 }
 
-const Game: React.FC = () => {
+export const Game: React.FC = () => {
   const { gameId } = useParams();
   const { socket } = useSocket();
   const navigate = useNavigate();
@@ -175,6 +175,4 @@ const Game: React.FC = () => {
       </VStack>
     </Container>
   );
-};
-
-export default Game; 
+}; 
