@@ -244,11 +244,22 @@ io.on('connection', (socket) => {
           .filter(([_, count]) => count === maxVotes)
           .map(([id]) => id);
 
+        // Find the imposter
+        const imposter = game.players.find(p => p.movie !== game.movies[0]);
+        
+        // Check if the eliminated player was the imposter
+        const wasImposterEliminated = eliminated.some(id => id === imposter?.id);
+        const resultMessage = wasImposterEliminated 
+          ? 'The players successfully identified and eliminated the imposter!'
+          : 'The players failed to identify the imposter!';
+
         // End the game
         game.status = 'finished';
         io.to(gameId).emit('gameOver', {
           eliminated,
-          movies: game.movies
+          movies: game.movies,
+          resultMessage,
+          imposter: imposter?.id
         });
       }
     } catch (error) {

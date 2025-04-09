@@ -41,6 +41,8 @@ interface GameState {
 interface GameOverData {
   eliminated: string[];
   movies: string[];
+  resultMessage: string;
+  imposter: string;
 }
 
 export const Game: React.FC = () => {
@@ -56,6 +58,8 @@ export const Game: React.FC = () => {
   const [myMovie, setMyMovie] = useState<string | null>(null);
   const [eliminated, setEliminated] = useState<string[]>([]);
   const [allMovies, setAllMovies] = useState<string[]>([]);
+  const [resultMessage, setResultMessage] = useState<string>('');
+  const [imposterId, setImposterId] = useState<string>('');
 
   useEffect(() => {
     if (!socket || !gameId) return;
@@ -82,6 +86,8 @@ export const Game: React.FC = () => {
     socket.on('gameOver', (data: GameOverData) => {
       setEliminated(data.eliminated);
       setAllMovies(data.movies);
+      setResultMessage(data.resultMessage);
+      setImposterId(data.imposter);
       setGameStatus('finished');
     });
 
@@ -159,11 +165,24 @@ export const Game: React.FC = () => {
         <Box textAlign="center" p={8} borderWidth={1} borderRadius="lg" boxShadow="md">
           <VStack spacing={6}>
             <Heading size="xl">Game Over!</Heading>
+            <Alert 
+              status={resultMessage.includes('successfully') ? 'success' : 'error'} 
+              borderRadius="md"
+            >
+              <AlertIcon />
+              {resultMessage}
+            </Alert>
             <Text fontSize="xl">
               {eliminated.length === 1 
                 ? `${players.find(p => p.id === eliminated[0])?.name} was eliminated!`
                 : 'It was a tie!'}
             </Text>
+            <Box>
+              <Text fontSize="lg" fontWeight="bold">The Imposter was:</Text>
+              <Text fontSize="xl" color="red.500" fontWeight="bold">
+                {players.find(p => p.id === imposterId)?.name}
+              </Text>
+            </Box>
             <Box>
               <Text fontSize="lg" fontWeight="bold">All Movies:</Text>
               <VStack spacing={2} mt={2}>
