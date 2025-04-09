@@ -168,9 +168,17 @@ export const Game: React.FC = () => {
   const handlePlayAgain = () => {
     if (!socket || !gameId || !isHost) return;
     
-    socket.emit('startGame', { gameId });
+    // Reset local state
     setVotedFor(null);
+    setMyItem(null);
+    setMyCategory(null);
     setGameStatus('playing');
+    setResultMessage('');
+    setImposterId('');
+    setEliminated([]);
+    setAllItems([]);
+    
+    socket.emit('startGame', { gameId });
   };
 
   if (gameStatus === 'finished') {

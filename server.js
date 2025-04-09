@@ -276,11 +276,18 @@ io.on('connection', (socket) => {
     const game = games.get(gameId);
     if (!game) return;
 
-    // Reset game state
+    // Reset game state for all players
+    game.players = game.players.map(player => ({
+      ...player,
+      item: undefined,
+      category: undefined
+    }));
     game.votes = {};
     game.status = 'playing';
     game.currentRound = 0;
     game.rounds = [];
+    game.items = [];
+    game.category = '';
 
     // Assign items to players
     const { players: updatedPlayers, items, category } = assignItems(game.players);
@@ -288,6 +295,7 @@ io.on('connection', (socket) => {
     game.items = items;
     game.category = category;
 
+    // Emit game state to all players
     io.to(gameId).emit('gameState', {
       players: game.players,
       status: game.status,
