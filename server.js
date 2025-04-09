@@ -33,6 +33,29 @@ app.get('*', (req, res) => {
 // Store active games
 const games = new Map();
 
+// Minimum players required to start a game
+const MIN_PLAYERS = 3;
+
+// List of movies
+const MOVIES = [
+  'The Shawshank Redemption',
+  'The Godfather',
+  'The Dark Knight',
+  'Pulp Fiction',
+  'Forrest Gump',
+  'Inception',
+  'The Matrix',
+  'Goodfellas',
+  'The Silence of the Lambs',
+  'Fight Club'
+];
+
+// Function to get random movies
+const getRandomMovies = (count: number) => {
+  const shuffled = [...MOVIES].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count);
+};
+
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
@@ -47,7 +70,9 @@ io.on('connection', (socket) => {
         }],
         status: 'waiting',
         currentRound: 0,
-        rounds: []
+        rounds: [],
+        votes: {},
+        movies: []
       });
       socket.join(gameId);
       if (typeof callback === 'function') {
@@ -144,13 +169,80 @@ io.on('connection', (socket) => {
   socket.on('startGame', ({ gameId }) => {
     try {
       const game = games.get(gameId);
-      if (game) {
-        game.status = 'playing';
-        io.to(gameId).emit('gameState', game);
+      if (!game) {
+        socket.emit('error', { message: 'Game not found' });
+        return;
       }
+      
+      // Check if the player is the host
+      const isHost = game.players.some(p => p.id === socket.id && p.isHost);
+      if (!isHost) {
+        socket.emit('error', { message: 'Only the host can start the game' });
+        return;
+      }
+      
+      // Check if there are enough players
+      if (game.players.length < MIN_PLAYERS) {
+        socket.emit('error', { message: `Need at least ${MIN_PLAYERS} players to start the game` });
+        return;
+      }
+      
+      // Select random movies for each player
+      const movies = getRandomMovies(game.players.length);
+      game.movies = movies;
+      
+      // Assign movies to players
+      game.players.forEach((player, index) => {
+        player.movie = movies[index];
+      });
+      
+      // Start the game
+      game.status = 'playing';
+      game.votes = {};
+      io.to(gameId).emit('gameState', game);
+      console.log(`Game ${gameId} started with ${game.players.length} players`);
     } catch (error) {
       console.error('Error starting game:', error);
       socket.emit('error', { message: 'Failed to start game' });
+    }
+  });
+
+  socket.on('vote', ({ gameId, votedForId }) => {
+    try {
+      const game = games.get(gameId);
+      if (!game || game.status !== 'playing') {
+        socket.emit('error', { message: 'Game not found or not in progress' });
+        return;
+      }
+
+      // Record the vote
+      game.votes[socket.id] = votedForId;
+      io.to(gameId).emit('gameState', game);
+
+      // Check if all players have voted
+      if (Object.keys(game.votes).length === game.players.length) {
+        // Count votes
+        const voteCount: Record<string, number> = {};
+        Object.values(game.votes).forEach(id => {
+          voteCount[id] = (voteCount[id] || 0) + 1;
+        });
+
+        // Find player with most votes
+        const maxVotes = Math.max(...Object.values(voteCount));
+        const eliminated = Object.entries(voteCount)
+          .filter(([_, count]) => count === maxVotes)
+          .map(([id]) => id);
+
+        // End the game
+        game.status = 'finished';
+        io.to(gameId).emit('gameOver', {
+          eliminated,
+          movies: game.movies
+        });
+      }
+    } catch (error) {
+      console.error('Error processing vote:', error);
+      socket.emit('error', { message: 'Failed to process vote' });
     }
   });
 

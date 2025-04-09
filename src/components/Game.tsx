@@ -16,6 +16,8 @@ import {
   GridItem,
   Flex,
   Spacer,
+  Alert,
+  AlertIcon,
 } from '@chakra-ui/react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSocket } from '../context/SocketContext';
@@ -24,13 +26,21 @@ interface Player {
   id: string;
   name: string;
   isHost: boolean;
+  movie?: string;
 }
 
 interface GameState {
   players: Player[];
-  status: 'waiting' | 'playing';
+  status: 'waiting' | 'playing' | 'finished';
   currentRound: number;
   rounds: any[];
+  votes: Record<string, string>;
+  movies: string[];
+}
+
+interface GameOverData {
+  eliminated: string[];
+  movies: string[];
 }
 
 export const Game: React.FC = () => {
@@ -40,10 +50,12 @@ export const Game: React.FC = () => {
   const toast = useToast();
   
   const [players, setPlayers] = useState<Player[]>([]);
-  const [gameStarted, setGameStarted] = useState(false);
+  const [gameStatus, setGameStatus] = useState<'waiting' | 'playing' | 'finished'>('waiting');
   const [votedFor, setVotedFor] = useState<string | null>(null);
-  const [gameOver, setGameOver] = useState(false);
-  const [winner, setWinner] = useState<string | null>(null);
+  const [isHost, setIsHost] = useState(false);
+  const [myMovie, setMyMovie] = useState<string | null>(null);
+  const [eliminated, setEliminated] = useState<string[]>([]);
+  const [allMovies, setAllMovies] = useState<string[]>([]);
 
   useEffect(() => {
     if (!socket || !gameId) return;
@@ -54,7 +66,23 @@ export const Game: React.FC = () => {
     socket.on('gameState', (gameState: GameState) => {
       console.log('Received gameState:', gameState);
       setPlayers(gameState.players);
-      setGameStarted(gameState.status === 'playing');
+      setGameStatus(gameState.status);
+      
+      // Check if current user is the host
+      const currentPlayer = gameState.players.find(p => p.id === socket.id);
+      setIsHost(currentPlayer?.isHost || false);
+      
+      // Set current player's movie
+      if (currentPlayer?.movie) {
+        setMyMovie(currentPlayer.movie);
+      }
+    });
+
+    // Listen for game over
+    socket.on('gameOver', (data: GameOverData) => {
+      setEliminated(data.eliminated);
+      setAllMovies(data.movies);
+      setGameStatus('finished');
     });
 
     // Request current game state
@@ -73,34 +101,69 @@ export const Game: React.FC = () => {
       if (response.gameState) {
         console.log('Received initial game state:', response.gameState);
         setPlayers(response.gameState.players);
-        setGameStarted(response.gameState.status === 'playing');
+        setGameStatus(response.gameState.status);
+        
+        // Check if current user is the host
+        const currentPlayer = response.gameState.players.find(p => p.id === socket.id);
+        setIsHost(currentPlayer?.isHost || false);
+        
+        // Set current player's movie
+        if (currentPlayer?.movie) {
+          setMyMovie(currentPlayer.movie);
+        }
       }
     });
 
     return () => {
       console.log('Cleaning up socket listeners');
       socket.off('gameState');
+      socket.off('gameOver');
     };
   }, [socket, gameId, toast]);
 
   const handleStartGame = () => {
     if (!socket || !gameId) return;
+    
+    if (players.length < 3) {
+      toast({
+        title: 'Not enough players',
+        description: 'You need at least 3 players to start the game',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+    
     socket.emit('startGame', { gameId });
   };
 
   const handleVote = (playerId: string) => {
-    if (votedFor) return;
+    if (!socket || !gameId || votedFor) return;
+    
+    socket.emit('vote', { gameId, votedForId: playerId });
     setVotedFor(playerId);
-    socket?.emit('vote', { gameId, votedForId: playerId });
   };
 
-  if (gameOver) {
+  if (gameStatus === 'finished') {
     return (
       <Container maxW="container.lg" py={8}>
         <Box textAlign="center" p={8} borderWidth={1} borderRadius="lg" boxShadow="md">
           <VStack spacing={6}>
             <Heading size="xl">Game Over!</Heading>
-            <Text fontSize="xl">The {winner} won!</Text>
+            <Text fontSize="xl">
+              {eliminated.length === 1 
+                ? `${players.find(p => p.id === eliminated[0])?.name} was eliminated!`
+                : 'It was a tie!'}
+            </Text>
+            <Box>
+              <Text fontSize="lg" fontWeight="bold">All Movies:</Text>
+              <VStack spacing={2} mt={2}>
+                {allMovies.map((movie, index) => (
+                  <Text key={index}>{movie}</Text>
+                ))}
+              </VStack>
+            </Box>
             <Button colorScheme="blue" size="lg" onClick={() => navigate('/')}>
               Back to Home
             </Button>
@@ -120,14 +183,14 @@ export const Game: React.FC = () => {
           </Button>
         </Flex>
         
-        {gameStarted ? (
+        {gameStatus === 'playing' ? (
           <Grid templateColumns={{ base: "1fr", md: "1fr 2fr" }} gap={6}>
             <GridItem>
               <Box p={6} borderWidth={1} borderRadius="lg" boxShadow="md" h="100%">
                 <VStack spacing={4} align="stretch">
-                  <Heading size="md">Game Status</Heading>
+                  <Heading size="md">Your Movie</Heading>
                   <Text fontSize="xl" fontWeight="bold" p={4} bg="blue.50" borderRadius="md">
-                    Game in progress
+                    {myMovie}
                   </Text>
                   <Text fontSize="sm" color="gray.600">
                     Discuss with other players to identify the imposters!
@@ -183,11 +246,26 @@ export const Game: React.FC = () => {
             <VStack spacing={4}>
               <Heading size="md">Waiting for players to join...</Heading>
               <Text>Share the game code with your friends: <Text as="span" fontWeight="bold">{gameId}</Text></Text>
-              <Text>Players joined: {players.length}</Text>
-              {players.length >= 2 && (
-                <Button colorScheme="green" size="lg" onClick={handleStartGame}>
-                  Start Game
-                </Button>
+              <Text>Players joined: {players.length}/3 minimum required</Text>
+              
+              {isHost ? (
+                <>
+                  {players.length < 3 ? (
+                    <Alert status="warning" borderRadius="md">
+                      <AlertIcon />
+                      Waiting for more players to join (minimum 3 required)
+                    </Alert>
+                  ) : (
+                    <Button colorScheme="green" size="lg" onClick={handleStartGame}>
+                      Start Game
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <Alert status="info" borderRadius="md">
+                  <AlertIcon />
+                  Waiting for the host to start the game
+                </Alert>
               )}
             </VStack>
           </Box>
