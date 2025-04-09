@@ -145,6 +145,14 @@ export const Game: React.FC = () => {
     setVotedFor(playerId);
   };
 
+  const handlePlayAgain = () => {
+    if (!socket || !gameId || !isHost) return;
+    
+    socket.emit('startGame', { gameId });
+    setVotedFor(null);
+    setGameStatus('playing');
+  };
+
   if (gameStatus === 'finished') {
     return (
       <Container maxW="container.lg" py={8}>
@@ -164,9 +172,21 @@ export const Game: React.FC = () => {
                 ))}
               </VStack>
             </Box>
-            <Button colorScheme="blue" size="lg" onClick={() => navigate('/')}>
-              Back to Home
-            </Button>
+            <HStack spacing={4}>
+              {isHost ? (
+                <Button colorScheme="green" size="lg" onClick={handlePlayAgain}>
+                  Play Again
+                </Button>
+              ) : (
+                <Alert status="info" borderRadius="md">
+                  <AlertIcon />
+                  Waiting for host to start a new game
+                </Alert>
+              )}
+              <Button colorScheme="blue" size="lg" onClick={() => navigate('/')}>
+                Leave Game
+              </Button>
+            </HStack>
           </VStack>
         </Box>
       </Container>
