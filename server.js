@@ -51,7 +51,7 @@ const MOVIES = [
 ];
 
 // Function to get random movies
-const getRandomMovies = (count: number) => {
+const getRandomMovies = (count) => {
   const shuffled = [...MOVIES].sort(() => 0.5 - Math.random());
   return shuffled.slice(0, count);
 };
@@ -222,7 +222,7 @@ io.on('connection', (socket) => {
       // Check if all players have voted
       if (Object.keys(game.votes).length === game.players.length) {
         // Count votes
-        const voteCount: Record<string, number> = {};
+        const voteCount = {};
         Object.values(game.votes).forEach(id => {
           voteCount[id] = (voteCount[id] || 0) + 1;
         });
