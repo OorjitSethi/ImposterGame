@@ -39,7 +39,8 @@ interface GameState {
   votes: Record<string, string>;
   items: string[];
   category: string;
-  imposterId: string;
+  imposterIds: string[];
+  winner?: 'imposters' | 'crewmates';
 }
 
 interface GameOverData {
@@ -65,7 +66,7 @@ export const Game: React.FC = () => {
   const [eliminated, setEliminated] = useState<string[]>([]);
   const [allItems, setAllItems] = useState<string[]>([]);
   const [resultMessage, setResultMessage] = useState<string>('');
-  const [imposterId, setImposterId] = useState<string>('');
+  const [imposterIds, setImposterIds] = useState<string[]>([]);
   const [gameCategory, setGameCategory] = useState<string>('');
 
   useEffect(() => {
@@ -94,9 +95,9 @@ export const Game: React.FC = () => {
         console.log('Setting game category:', gameState.category);
         setGameCategory(gameState.category);
       }
-      if (gameState.imposterId) {
-        console.log('Setting imposter ID:', gameState.imposterId);
-        setImposterId(gameState.imposterId);
+      if (gameState.imposterIds) {
+        console.log('Setting imposter IDs:', gameState.imposterIds);
+        setImposterIds(gameState.imposterIds);
       }
 
       // Update votedFor state based on game votes
@@ -113,7 +114,6 @@ export const Game: React.FC = () => {
       setAllItems(data.items);
       setGameCategory(data.category);
       setResultMessage(data.resultMessage);
-      setImposterId(data.imposter);
       setGameStatus('finished');
     });
 
@@ -190,7 +190,7 @@ export const Game: React.FC = () => {
     setMyCategory(null);
     setGameStatus('playing');
     setResultMessage('');
-    setImposterId('');
+    setImposterIds([]);
     setEliminated([]);
     setAllItems([]);
     
@@ -216,10 +216,14 @@ export const Game: React.FC = () => {
                 : 'It was a tie!'}
             </Text>
             <Box>
-              <Text fontSize="lg" fontWeight="bold">The Imposter was:</Text>
-              <Text fontSize="xl" color="red.500" fontWeight="bold">
-                {players.find(p => p.id === imposterId)?.name}
-              </Text>
+              <Text fontSize="lg" fontWeight="bold">The Imposters were:</Text>
+              <List spacing={2}>
+                {imposterIds.map((id) => (
+                  <ListItem key={id}>
+                    {players.find(p => p.id === id)?.name}
+                  </ListItem>
+                ))}
+              </List>
             </Box>
             <Box>
               <Text fontSize="lg" fontWeight="bold">Category: {gameCategory}</Text>
@@ -270,14 +274,19 @@ export const Game: React.FC = () => {
                   <Text fontSize="xl" fontWeight="bold" p={4} bg="blue.50" borderRadius="md">
                     {myItem}
                   </Text>
-                  {socket?.id === imposterId && (
+                  {imposterIds.includes(socket?.id || '') && (
                     <Alert status="warning" borderRadius="md">
                       <AlertIcon />
-                      You are the imposter! Your item is different from others. Try to blend in and avoid being voted out.
+                      You are an imposter! Your item is different from others. Try to blend in and avoid being voted out.
+                      {imposterIds.length > 1 && (
+                        <Text mt={2}>
+                          Your fellow imposter is: {players.find(p => imposterIds.includes(p.id) && p.id !== socket?.id)?.name}
+                        </Text>
+                      )}
                     </Alert>
                   )}
                   <Text fontSize="sm" color="gray.600">
-                    Discuss with other players to identify the imposter!
+                    Discuss with other players to identify the imposters!
                   </Text>
                 </VStack>
               </Box>
@@ -299,10 +308,7 @@ export const Game: React.FC = () => {
                         >
                           <VStack align="stretch" spacing={2}>
                             <Flex justify="space-between" align="center">
-                              <Text 
-                                fontWeight="bold" 
-                                color="black"
-                              >
+                              <Text fontWeight="bold">
                                 {player.name}
                               </Text>
                               <Badge colorScheme={player.isHost ? 'purple' : 'green'}>

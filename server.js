@@ -56,19 +56,19 @@ const CATEGORIES = {
     'The Batman',
     'Doctor Strange in the Multiverse of Madness',
     'Black Adam',
-    'Pathaan',
-    'RRR',
-    'Brahmastra',
-    'KGF: Chapter 2',
-    'War',
-    'Pushpa: The Rise',
-    'Gangubai Kathiawadi',
+    'Titanic',
+    'Avatar',
+    'The Dark Knight',
+    'Jurassic World',
+    'Star Wars: The Force Awakens',
+    'The Lion King',
+    'Inception',
     'Captain Marvel',
     'Black Widow',
     'Shang-Chi and the Legend of the Ten Rings',
     'Eternals',
-    'Bhool Bhulaiyaa 2',
-    'Jersey'
+    'Top Gun: Maverick',
+    'Interstellar'
   ],
   songs: [
     'Blinding Lights',
@@ -152,12 +152,20 @@ const assignItems = (players) => {
   console.log('Main item:', mainItem);
   console.log('Imposter item:', imposterItem);
   
-  const imposterIndex = Math.floor(Math.random() * players.length);
-  console.log('Imposter index:', imposterIndex);
-  console.log('Imposter will be:', players[imposterIndex].name);
+  // Select 2 random imposters
+  const imposterIndices = [];
+  while (imposterIndices.length < 2 && imposterIndices.length < players.length) {
+    const randomIndex = Math.floor(Math.random() * players.length);
+    if (!imposterIndices.includes(randomIndex)) {
+      imposterIndices.push(randomIndex);
+    }
+  }
+  
+  console.log('Imposter indices:', imposterIndices);
+  console.log('Imposters will be:', imposterIndices.map(index => players[index].name));
   
   const updatedPlayers = players.map((player, index) => {
-    const isImposter = index === imposterIndex;
+    const isImposter = imposterIndices.includes(index);
     console.log(`Player ${player.name} (${player.id}) is ${isImposter ? 'IMPOSTER' : 'NOT IMPOSTER'}`);
     return {
       ...player,
@@ -171,7 +179,7 @@ const assignItems = (players) => {
     players: updatedPlayers,
     items: [mainItem, imposterItem],
     category,
-    imposterId: players[imposterIndex].id
+    imposterIds: imposterIndices.map(index => players[index].id)
   };
 };
 
@@ -307,14 +315,14 @@ io.on('connection', (socket) => {
     game.rounds = [];
     game.items = [];
     game.category = '';
-    game.imposterId = '';
+    game.imposterIds = [];
 
     // Assign items to players
-    const { players: updatedPlayers, items, category, imposterId } = assignItems(game.players);
+    const { players: updatedPlayers, items, category, imposterIds } = assignItems(game.players);
     game.players = updatedPlayers;
     game.items = items;
     game.category = category;
-    game.imposterId = imposterId;
+    game.imposterIds = imposterIds;
 
     console.log('Final game state:', {
       players: game.players.map(p => ({
@@ -323,7 +331,7 @@ io.on('connection', (socket) => {
         isImposter: p.isImposter,
         item: p.item
       })),
-      imposterId: game.imposterId,
+      imposterIds: game.imposterIds,
       items: game.items,
       category: game.category
     });
@@ -337,66 +345,81 @@ io.on('connection', (socket) => {
       votes: game.votes,
       items: game.items,
       category: game.category,
-      imposterId: game.imposterId
+      imposterIds: game.imposterIds
     });
   });
 
-  socket.on('vote', ({ gameId, votedForId }) => {
-    try {
-      const game = games.get(gameId);
-      if (!game || game.status !== 'playing') {
-        socket.emit('error', { message: 'Game not found or not in progress' });
-        return;
-      }
+  socket.on('vote', ({ gameId, playerId }) => {
+    const game = games.get(gameId);
+    if (!game) return;
 
-      // Record the vote
-      game.votes[socket.id] = votedForId;
-      
-      // Emit updated game state to all players
-      io.to(gameId).emit('gameState', {
-        players: game.players,
-        status: game.status,
-        currentRound: game.currentRound,
-        rounds: game.rounds,
-        votes: game.votes,
-        items: game.items,
-        category: game.category,
-        imposterId: game.imposterId
+    // Record the vote
+    game.votes[socket.id] = playerId;
+    
+    // Check if all players have voted
+    const allPlayersVoted = game.players.every(player => game.votes[player.id]);
+    
+    if (allPlayersVoted) {
+      // Count votes
+      const voteCounts = {};
+      Object.values(game.votes).forEach(votedPlayerId => {
+        voteCounts[votedPlayerId] = (voteCounts[votedPlayerId] || 0) + 1;
       });
-
-      // Check if all players have voted
-      if (Object.keys(game.votes).length === game.players.length) {
-        // Count votes
-        const voteCount = {};
-        Object.values(game.votes).forEach(id => {
-          voteCount[id] = (voteCount[id] || 0) + 1;
-        });
-
-        // Find player with most votes
-        const maxVotes = Math.max(...Object.values(voteCount));
-        const eliminated = Object.entries(voteCount)
-          .filter(([_, count]) => count === maxVotes)
-          .map(([id]) => id);
-
-        // Check if the eliminated player was the imposter
-        const wasImposterEliminated = eliminated.some(id => id === game.imposterId);
-        const resultMessage = wasImposterEliminated 
-          ? 'The players successfully identified and eliminated the imposter!'
-          : 'The players failed to identify the imposter!';
-
-        // End the game
-        game.status = 'finished';
-        io.to(gameId).emit('gameOver', {
-          eliminated,
-          items: game.items,
-          category: game.category,
-          resultMessage,
-          imposter: game.imposterId
-        });
+      
+      // Find player with most votes
+      let maxVotes = 0;
+      let votedOutPlayerId = null;
+      
+      Object.entries(voteCounts).forEach(([playerId, count]) => {
+        if (count > maxVotes) {
+          maxVotes = count;
+          votedOutPlayerId = playerId;
+        }
+      });
+      
+      // Check if imposters won
+      const votedOutPlayer = game.players.find(p => p.id === votedOutPlayerId);
+      const remainingImposters = game.players.filter(p => 
+        p.isImposter && p.id !== votedOutPlayerId
+      );
+      
+      if (votedOutPlayer?.isImposter) {
+        // If an imposter was voted out, check if the other imposter is still in the game
+        if (remainingImposters.length > 0) {
+          // Other imposter is still in the game
+          io.to(gameId).emit('gameState', {
+            ...game,
+            status: 'finished',
+            winner: 'imposters'
+          });
+        } else {
+          // All imposters were voted out
+          io.to(gameId).emit('gameState', {
+            ...game,
+            status: 'finished',
+            winner: 'crewmates'
+          });
+        }
+      } else {
+        // If a crewmate was voted out, check if imposters have majority
+        const remainingPlayers = game.players.filter(p => p.id !== votedOutPlayerId);
+        const remainingCrewmates = remainingPlayers.filter(p => !p.isImposter);
+        
+        if (remainingImposters.length >= remainingCrewmates.length) {
+          // Imposters have majority
+          io.to(gameId).emit('gameState', {
+            ...game,
+            status: 'finished',
+            winner: 'imposters'
+          });
+        } else {
+          // Continue the game
+          io.to(gameId).emit('gameState', game);
+        }
       }
-    } catch (error) {
-      console.error('Error processing vote:', error);
-      socket.emit('error', { message: 'Failed to process vote' });
+    } else {
+      // Not all players have voted yet
+      io.to(gameId).emit('gameState', game);
     }
   });
 
