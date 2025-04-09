@@ -89,6 +89,13 @@ export const Game: React.FC = () => {
       if (gameState.category) {
         setGameCategory(gameState.category);
       }
+
+      // Update votedFor state based on game votes
+      if (gameState.votes && socket.id && gameState.votes[socket.id]) {
+        setVotedFor(gameState.votes[socket.id]);
+      } else {
+        setVotedFor(null);
+      }
     });
 
     // Listen for game over

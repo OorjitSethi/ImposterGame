@@ -317,7 +317,17 @@ io.on('connection', (socket) => {
 
       // Record the vote
       game.votes[socket.id] = votedForId;
-      io.to(gameId).emit('gameState', game);
+      
+      // Emit updated game state to all players
+      io.to(gameId).emit('gameState', {
+        players: game.players,
+        status: game.status,
+        currentRound: game.currentRound,
+        rounds: game.rounds,
+        votes: game.votes,
+        items: game.items,
+        category: game.category
+      });
 
       // Check if all players have voted
       if (Object.keys(game.votes).length === game.players.length) {
