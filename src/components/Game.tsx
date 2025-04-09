@@ -28,6 +28,7 @@ interface Player {
   isHost: boolean;
   item?: string;
   category?: string;
+  isImposter?: boolean;
 }
 
 interface GameState {
@@ -80,15 +81,22 @@ export const Game: React.FC = () => {
       
       // Check if current user is the host
       const currentPlayer = gameState.players.find(p => p.id === socket.id);
+      console.log('Current player:', currentPlayer);
       setIsHost(currentPlayer?.isHost || false);
       
       // Set current player's item and category
       if (currentPlayer?.item) {
+        console.log('Setting player item:', currentPlayer.item);
         setMyItem(currentPlayer.item);
         setMyCategory(currentPlayer.category || '');
       }
       if (gameState.category) {
+        console.log('Setting game category:', gameState.category);
         setGameCategory(gameState.category);
+      }
+      if (gameState.imposterId) {
+        console.log('Setting imposter ID:', gameState.imposterId);
+        setImposterId(gameState.imposterId);
       }
 
       // Update votedFor state based on game votes
@@ -262,10 +270,10 @@ export const Game: React.FC = () => {
                   <Text fontSize="xl" fontWeight="bold" p={4} bg="blue.50" borderRadius="md">
                     {myItem}
                   </Text>
-                  {myItem && allItems.length > 0 && myItem !== allItems[0] && (
+                  {socket?.id === imposterId && (
                     <Alert status="warning" borderRadius="md">
                       <AlertIcon />
-                      You are the imposter! Try to blend in and avoid being voted out.
+                      You are the imposter! Your item is different from others. Try to blend in and avoid being voted out.
                     </Alert>
                   )}
                   <Text fontSize="sm" color="gray.600">

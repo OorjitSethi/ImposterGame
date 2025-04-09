@@ -143,17 +143,29 @@ const getRandomCategory = () => {
 
 // Function to assign items to players
 const assignItems = (players) => {
+  console.log('Assigning items to players:', players);
   const category = getRandomCategory();
+  console.log('Selected category:', category);
+  
   const mainItem = getRandomItems(category, 1)[0];
   const imposterItem = getRandomItems(category, 1)[0];
-  const imposterIndex = Math.floor(Math.random() * players.length);
+  console.log('Main item:', mainItem);
+  console.log('Imposter item:', imposterItem);
   
-  const updatedPlayers = players.map((player, index) => ({
-    ...player,
-    item: index === imposterIndex ? imposterItem : mainItem,
-    category,
-    isImposter: index === imposterIndex
-  }));
+  const imposterIndex = Math.floor(Math.random() * players.length);
+  console.log('Imposter index:', imposterIndex);
+  console.log('Imposter will be:', players[imposterIndex].name);
+  
+  const updatedPlayers = players.map((player, index) => {
+    const isImposter = index === imposterIndex;
+    console.log(`Player ${player.name} (${player.id}) is ${isImposter ? 'IMPOSTER' : 'NOT IMPOSTER'}`);
+    return {
+      ...player,
+      item: isImposter ? imposterItem : mainItem,
+      category,
+      isImposter
+    };
+  });
 
   return {
     players: updatedPlayers,
@@ -275,8 +287,12 @@ io.on('connection', (socket) => {
   });
 
   socket.on('startGame', ({ gameId }) => {
+    console.log('Starting game:', gameId);
     const game = games.get(gameId);
-    if (!game) return;
+    if (!game) {
+      console.error('Game not found:', gameId);
+      return;
+    }
 
     // Reset game state for all players
     game.players = game.players.map(player => ({
@@ -299,6 +315,18 @@ io.on('connection', (socket) => {
     game.items = items;
     game.category = category;
     game.imposterId = imposterId;
+
+    console.log('Final game state:', {
+      players: game.players.map(p => ({
+        name: p.name,
+        id: p.id,
+        isImposter: p.isImposter,
+        item: p.item
+      })),
+      imposterId: game.imposterId,
+      items: game.items,
+      category: game.category
+    });
 
     // Emit game state to all players
     io.to(gameId).emit('gameState', {
