@@ -301,7 +301,7 @@ export const Game: React.FC = () => {
                             <Flex justify="space-between" align="center">
                               <Text 
                                 fontWeight="bold" 
-                                color={player.id === imposterId ? 'red.500' : 'black'}
+                                color="black"
                               >
                                 {player.name}
                               </Text>
