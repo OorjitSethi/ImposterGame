@@ -30,6 +30,16 @@ app.get('*', (req, res) => {
   res.sendFile(join(__dirname, 'dist', 'index.html'));
 });
 
+// Function to generate a 5-digit game code
+const generateGameCode = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 5; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+};
+
 // Store active games
 const games = new Map();
 
@@ -78,7 +88,7 @@ io.on('connection', (socket) => {
 
   socket.on('createGame', (callback) => {
     try {
-      const gameId = uuidv4();
+      const gameId = generateGameCode();
       games.set(gameId, {
         players: [{
           id: socket.id,
@@ -187,11 +197,15 @@ io.on('connection', (socket) => {
     const game = games.get(gameId);
     if (!game) return;
 
+    // Reset game state
+    game.votes = {};
+    game.status = 'playing';
+    game.currentRound = 0;
+    game.rounds = [];
+
     // Assign movies to players
     const { players: updatedPlayers, movies } = assignMovies(game.players);
     game.players = updatedPlayers;
-    game.status = 'playing';
-    game.votes = {};
     game.movies = movies;
 
     io.to(gameId).emit('gameState', {
