@@ -261,7 +261,7 @@ export const Game: React.FC = () => {
                   <Text fontSize="xl" fontWeight="bold" p={4} bg="blue.50" borderRadius="md">
                     {myItem}
                   </Text>
-                  {socket && socket.id === imposterId && (
+                  {myItem && allItems.length > 0 && myItem !== allItems[0] && (
                     <Alert status="warning" borderRadius="md">
                       <AlertIcon />
                       You are the imposter! Try to blend in and avoid being voted out.
@@ -290,7 +290,10 @@ export const Game: React.FC = () => {
                         >
                           <VStack align="stretch" spacing={2}>
                             <Flex justify="space-between" align="center">
-                              <Text fontWeight="bold" color={player.id === imposterId ? 'red.500' : 'black'}>
+                              <Text 
+                                fontWeight="bold" 
+                                color={myItem && allItems.length > 0 && myItem !== allItems[0] && player.id === socket?.id ? 'red.500' : 'black'}
+                              >
                                 {player.name}
                               </Text>
                               <Badge colorScheme={player.isHost ? 'purple' : 'green'}>
