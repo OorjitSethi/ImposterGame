@@ -38,6 +38,7 @@ interface GameState {
   votes: Record<string, string>;
   items: string[];
   category: string;
+  imposterId: string;
 }
 
 interface GameOverData {
@@ -292,7 +293,7 @@ export const Game: React.FC = () => {
                             <Flex justify="space-between" align="center">
                               <Text 
                                 fontWeight="bold" 
-                                color={myItem && allItems.length > 0 && myItem !== allItems[0] && player.id === socket?.id ? 'red.500' : 'black'}
+                                color={player.id === imposterId ? 'red.500' : 'black'}
                               >
                                 {player.name}
                               </Text>

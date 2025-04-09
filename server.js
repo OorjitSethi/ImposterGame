@@ -151,13 +151,15 @@ const assignItems = (players) => {
   const updatedPlayers = players.map((player, index) => ({
     ...player,
     item: index === imposterIndex ? imposterItem : mainItem,
-    category
+    category,
+    isImposter: index === imposterIndex
   }));
 
   return {
     players: updatedPlayers,
     items: [mainItem, imposterItem],
-    category
+    category,
+    imposterId: players[imposterIndex].id
   };
 };
 
@@ -280,7 +282,8 @@ io.on('connection', (socket) => {
     game.players = game.players.map(player => ({
       ...player,
       item: undefined,
-      category: undefined
+      category: undefined,
+      isImposter: false
     }));
     game.votes = {};
     game.status = 'playing';
@@ -288,12 +291,14 @@ io.on('connection', (socket) => {
     game.rounds = [];
     game.items = [];
     game.category = '';
+    game.imposterId = '';
 
     // Assign items to players
-    const { players: updatedPlayers, items, category } = assignItems(game.players);
+    const { players: updatedPlayers, items, category, imposterId } = assignItems(game.players);
     game.players = updatedPlayers;
     game.items = items;
     game.category = category;
+    game.imposterId = imposterId;
 
     // Emit game state to all players
     io.to(gameId).emit('gameState', {
@@ -303,7 +308,8 @@ io.on('connection', (socket) => {
       rounds: game.rounds,
       votes: game.votes,
       items: game.items,
-      category: game.category
+      category: game.category,
+      imposterId: game.imposterId
     });
   });
 
@@ -326,7 +332,8 @@ io.on('connection', (socket) => {
         rounds: game.rounds,
         votes: game.votes,
         items: game.items,
-        category: game.category
+        category: game.category,
+        imposterId: game.imposterId
       });
 
       // Check if all players have voted
@@ -343,11 +350,8 @@ io.on('connection', (socket) => {
           .filter(([_, count]) => count === maxVotes)
           .map(([id]) => id);
 
-        // Find the imposter
-        const imposter = game.players.find(p => p.item !== game.items[0]);
-        
         // Check if the eliminated player was the imposter
-        const wasImposterEliminated = eliminated.some(id => id === imposter?.id);
+        const wasImposterEliminated = eliminated.some(id => id === game.imposterId);
         const resultMessage = wasImposterEliminated 
           ? 'The players successfully identified and eliminated the imposter!'
           : 'The players failed to identify the imposter!';
@@ -359,7 +363,7 @@ io.on('connection', (socket) => {
           items: game.items,
           category: game.category,
           resultMessage,
-          imposter: imposter?.id
+          imposter: game.imposterId
         });
       }
     } catch (error) {
