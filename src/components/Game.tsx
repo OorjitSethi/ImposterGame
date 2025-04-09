@@ -261,6 +261,12 @@ export const Game: React.FC = () => {
                   <Text fontSize="xl" fontWeight="bold" p={4} bg="blue.50" borderRadius="md">
                     {myItem}
                   </Text>
+                  {myItem && allItems.length > 0 && myItem !== allItems[0] && (
+                    <Alert status="warning" borderRadius="md">
+                      <AlertIcon />
+                      You are the imposter! Try to blend in and avoid being voted out.
+                    </Alert>
+                  )}
                   <Text fontSize="sm" color="gray.600">
                     Discuss with other players to identify the imposter!
                   </Text>
