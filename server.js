@@ -46,40 +46,88 @@ const games = new Map();
 // Minimum players required to start a game
 const MIN_PLAYERS = 3;
 
-// List of movies
-const MOVIES = [
-  'The Shawshank Redemption',
-  'The Godfather',
-  'The Dark Knight',
-  'Pulp Fiction',
-  'Forrest Gump',
-  'Inception',
-  'The Matrix',
-  'Goodfellas',
-  'The Silence of the Lambs',
-  'Fight Club'
-];
+// Categories and their items
+const CATEGORIES = {
+  movies: [
+    'The Shawshank Redemption',
+    'The Godfather',
+    'The Dark Knight',
+    'Pulp Fiction',
+    'Forrest Gump',
+    'Inception',
+    'The Matrix',
+    'Goodfellas',
+    'The Silence of the Lambs',
+    'Fight Club'
+  ],
+  songs: [
+    'Bohemian Rhapsody',
+    'Stairway to Heaven',
+    'Billie Jean',
+    'Sweet Child O\' Mine',
+    'Smells Like Teen Spirit',
+    'Hotel California',
+    'Sweet Home Alabama',
+    'Sweet Caroline',
+    'Don\'t Stop Believin\'',
+    'Sweet Dreams'
+  ],
+  artists: [
+    'Michael Jackson',
+    'Elvis Presley',
+    'Madonna',
+    'Prince',
+    'David Bowie',
+    'Freddie Mercury',
+    'John Lennon',
+    'Bob Marley',
+    'Miles Davis',
+    'Louis Armstrong'
+  ],
+  historicalFigures: [
+    'Albert Einstein',
+    'Mahatma Gandhi',
+    'Martin Luther King Jr.',
+    'Winston Churchill',
+    'Nelson Mandela',
+    'Mother Teresa',
+    'Leonardo da Vinci',
+    'William Shakespeare',
+    'Isaac Newton',
+    'Marie Curie'
+  ]
+};
 
-// Function to get random movies
-const getRandomMovies = (count) => {
-  const shuffled = [...MOVIES].sort(() => 0.5 - Math.random());
+// Function to get random items from a category
+const getRandomItems = (category, count) => {
+  const items = CATEGORIES[category];
+  const shuffled = [...items].sort(() => 0.5 - Math.random());
   return shuffled.slice(0, count);
 };
 
-// Function to assign movies to players
-const assignMovies = (players) => {
-  const mainMovie = getRandomMovies(1)[0];
-  const imposterMovie = getRandomMovies(1)[0];
+// Function to get a random category
+const getRandomCategory = () => {
+  const categories = Object.keys(CATEGORIES);
+  return categories[Math.floor(Math.random() * categories.length)];
+};
+
+// Function to assign items to players
+const assignItems = (players) => {
+  const category = getRandomCategory();
+  const mainItem = getRandomItems(category, 1)[0];
+  const imposterItem = getRandomItems(category, 1)[0];
   const imposterIndex = Math.floor(Math.random() * players.length);
   
   const updatedPlayers = players.map((player, index) => ({
     ...player,
-    movie: index === imposterIndex ? imposterMovie : mainMovie
+    item: index === imposterIndex ? imposterItem : mainItem,
+    category
   }));
 
   return {
     players: updatedPlayers,
-    movies: [mainMovie, imposterMovie]
+    items: [mainItem, imposterItem],
+    category
   };
 };
 
@@ -99,7 +147,8 @@ io.on('connection', (socket) => {
         currentRound: 0,
         rounds: [],
         votes: {},
-        movies: []
+        items: [],
+        category: ''
       });
       socket.join(gameId);
       if (typeof callback === 'function') {
@@ -203,10 +252,11 @@ io.on('connection', (socket) => {
     game.currentRound = 0;
     game.rounds = [];
 
-    // Assign movies to players
-    const { players: updatedPlayers, movies } = assignMovies(game.players);
+    // Assign items to players
+    const { players: updatedPlayers, items, category } = assignItems(game.players);
     game.players = updatedPlayers;
-    game.movies = movies;
+    game.items = items;
+    game.category = category;
 
     io.to(gameId).emit('gameState', {
       players: game.players,
@@ -214,7 +264,8 @@ io.on('connection', (socket) => {
       currentRound: game.currentRound,
       rounds: game.rounds,
       votes: game.votes,
-      movies: game.movies
+      items: game.items,
+      category: game.category
     });
   });
 
@@ -245,7 +296,7 @@ io.on('connection', (socket) => {
           .map(([id]) => id);
 
         // Find the imposter
-        const imposter = game.players.find(p => p.movie !== game.movies[0]);
+        const imposter = game.players.find(p => p.item !== game.items[0]);
         
         // Check if the eliminated player was the imposter
         const wasImposterEliminated = eliminated.some(id => id === imposter?.id);
@@ -257,7 +308,8 @@ io.on('connection', (socket) => {
         game.status = 'finished';
         io.to(gameId).emit('gameOver', {
           eliminated,
-          movies: game.movies,
+          items: game.items,
+          category: game.category,
           resultMessage,
           imposter: imposter?.id
         });

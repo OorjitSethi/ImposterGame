@@ -26,7 +26,8 @@ interface Player {
   id: string;
   name: string;
   isHost: boolean;
-  movie?: string;
+  item?: string;
+  category?: string;
 }
 
 interface GameState {
@@ -35,12 +36,14 @@ interface GameState {
   currentRound: number;
   rounds: any[];
   votes: Record<string, string>;
-  movies: string[];
+  items: string[];
+  category: string;
 }
 
 interface GameOverData {
   eliminated: string[];
-  movies: string[];
+  items: string[];
+  category: string;
   resultMessage: string;
   imposter: string;
 }
@@ -55,11 +58,13 @@ export const Game: React.FC = () => {
   const [gameStatus, setGameStatus] = useState<'waiting' | 'playing' | 'finished'>('waiting');
   const [votedFor, setVotedFor] = useState<string | null>(null);
   const [isHost, setIsHost] = useState(false);
-  const [myMovie, setMyMovie] = useState<string | null>(null);
+  const [myItem, setMyItem] = useState<string | null>(null);
+  const [myCategory, setMyCategory] = useState<string | null>(null);
   const [eliminated, setEliminated] = useState<string[]>([]);
-  const [allMovies, setAllMovies] = useState<string[]>([]);
+  const [allItems, setAllItems] = useState<string[]>([]);
   const [resultMessage, setResultMessage] = useState<string>('');
   const [imposterId, setImposterId] = useState<string>('');
+  const [gameCategory, setGameCategory] = useState<string>('');
 
   useEffect(() => {
     if (!socket || !gameId) return;
@@ -76,16 +81,21 @@ export const Game: React.FC = () => {
       const currentPlayer = gameState.players.find(p => p.id === socket.id);
       setIsHost(currentPlayer?.isHost || false);
       
-      // Set current player's movie
-      if (currentPlayer?.movie) {
-        setMyMovie(currentPlayer.movie);
+      // Set current player's item and category
+      if (currentPlayer?.item) {
+        setMyItem(currentPlayer.item);
+        setMyCategory(currentPlayer.category || '');
+      }
+      if (gameState.category) {
+        setGameCategory(gameState.category);
       }
     });
 
     // Listen for game over
     socket.on('gameOver', (data: GameOverData) => {
       setEliminated(data.eliminated);
-      setAllMovies(data.movies);
+      setAllItems(data.items);
+      setGameCategory(data.category);
       setResultMessage(data.resultMessage);
       setImposterId(data.imposter);
       setGameStatus('finished');
@@ -113,9 +123,13 @@ export const Game: React.FC = () => {
         const currentPlayer = response.gameState.players.find(p => p.id === socket.id);
         setIsHost(currentPlayer?.isHost || false);
         
-        // Set current player's movie
-        if (currentPlayer?.movie) {
-          setMyMovie(currentPlayer.movie);
+        // Set current player's item and category
+        if (currentPlayer?.item) {
+          setMyItem(currentPlayer.item);
+          setMyCategory(currentPlayer.category || '');
+        }
+        if (response.gameState.category) {
+          setGameCategory(response.gameState.category);
         }
       }
     });
@@ -184,10 +198,11 @@ export const Game: React.FC = () => {
               </Text>
             </Box>
             <Box>
-              <Text fontSize="lg" fontWeight="bold">All Movies:</Text>
+              <Text fontSize="lg" fontWeight="bold">Category: {gameCategory}</Text>
+              <Text fontSize="lg" fontWeight="bold">All Items:</Text>
               <VStack spacing={2} mt={2}>
-                {allMovies.map((movie, index) => (
-                  <Text key={index}>{movie}</Text>
+                {allItems.map((item, index) => (
+                  <Text key={index}>{item}</Text>
                 ))}
               </VStack>
             </Box>
@@ -227,12 +242,12 @@ export const Game: React.FC = () => {
             <GridItem>
               <Box p={6} borderWidth={1} borderRadius="lg" boxShadow="md" h="100%">
                 <VStack spacing={4} align="stretch">
-                  <Heading size="md">Your Movie</Heading>
+                  <Heading size="md">Your {myCategory}</Heading>
                   <Text fontSize="xl" fontWeight="bold" p={4} bg="blue.50" borderRadius="md">
-                    {myMovie}
+                    {myItem}
                   </Text>
                   <Text fontSize="sm" color="gray.600">
-                    Discuss with other players to identify the imposters!
+                    Discuss with other players to identify the imposter!
                   </Text>
                 </VStack>
               </Box>
