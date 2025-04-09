@@ -327,12 +327,14 @@ io.on('connection', (socket) => {
     game.category = category;
     game.imposterIds = imposterIds;
 
+    // Log detailed game state for debugging
     console.log('Final game state:', {
       players: game.players.map(p => ({
         name: p.name,
         id: p.id,
         isImposter: p.isImposter,
-        item: p.item
+        item: p.item,
+        socketId: p.id
       })),
       imposterIds: game.imposterIds,
       items: game.items,
@@ -355,14 +357,20 @@ io.on('connection', (socket) => {
   });
 
   socket.on('vote', ({ gameId, playerId }) => {
+    console.log('Received vote:', { gameId, playerId, socketId: socket.id });
     const game = games.get(gameId);
-    if (!game) return;
+    if (!game) {
+      console.error('Game not found:', gameId);
+      return;
+    }
 
     // Record the vote
     game.votes[socket.id] = playerId;
+    console.log('Current votes:', game.votes);
     
     // Check if all players have voted
     const allPlayersVoted = game.players.every(player => game.votes[player.id]);
+    console.log('All players voted:', allPlayersVoted);
     
     if (allPlayersVoted) {
       // Count votes
@@ -370,6 +378,7 @@ io.on('connection', (socket) => {
       Object.values(game.votes).forEach(votedPlayerId => {
         voteCounts[votedPlayerId] = (voteCounts[votedPlayerId] || 0) + 1;
       });
+      console.log('Vote counts:', voteCounts);
       
       // Find player with most votes
       let maxVotes = 0;
@@ -381,17 +390,20 @@ io.on('connection', (socket) => {
           votedOutPlayerId = playerId;
         }
       });
+      console.log('Player voted out:', votedOutPlayerId);
       
       // Check if imposters won
       const votedOutPlayer = game.players.find(p => p.id === votedOutPlayerId);
       const remainingImposters = game.players.filter(p => 
         p.isImposter && p.id !== votedOutPlayerId
       );
+      console.log('Remaining imposters:', remainingImposters.map(p => p.name));
       
       if (votedOutPlayer?.isImposter) {
         // If an imposter was voted out, check if the other imposter is still in the game
         if (remainingImposters.length > 0) {
           // Other imposter is still in the game
+          console.log('Imposters win - one imposter remains');
           io.to(gameId).emit('gameState', {
             ...game,
             status: 'finished',
@@ -399,6 +411,7 @@ io.on('connection', (socket) => {
           });
         } else {
           // All imposters were voted out
+          console.log('Crewmates win - all imposters eliminated');
           io.to(gameId).emit('gameState', {
             ...game,
             status: 'finished',
@@ -412,6 +425,7 @@ io.on('connection', (socket) => {
         
         if (remainingImposters.length >= remainingCrewmates.length) {
           // Imposters have majority
+          console.log('Imposters win - have majority');
           io.to(gameId).emit('gameState', {
             ...game,
             status: 'finished',
@@ -419,11 +433,13 @@ io.on('connection', (socket) => {
           });
         } else {
           // Continue the game
+          console.log('Game continues');
           io.to(gameId).emit('gameState', game);
         }
       }
     } else {
       // Not all players have voted yet
+      console.log('Waiting for more votes');
       io.to(gameId).emit('gameState', game);
     }
   });

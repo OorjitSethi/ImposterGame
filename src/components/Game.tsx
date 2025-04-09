@@ -119,6 +119,10 @@ export const Game: React.FC = () => {
       if (newGameState.imposterIds) {
         console.log('Setting imposter IDs:', newGameState.imposterIds);
         setImposterIds(newGameState.imposterIds);
+        // Log if current player is an imposter
+        if (socket.id && newGameState.imposterIds.includes(socket.id)) {
+          console.log('Current player is an imposter');
+        }
       }
       if (newGameState.imposterCount) {
         console.log('Setting imposter count:', newGameState.imposterCount);
@@ -190,7 +194,8 @@ export const Game: React.FC = () => {
   const handleVote = (playerId: string) => {
     if (!socket || !gameId || votedFor) return;
     
-    socket.emit('vote', { gameId, votedForId: playerId });
+    console.log('Voting for player:', playerId);
+    socket.emit('vote', { gameId, playerId });
     setVotedFor(playerId);
   };
 
