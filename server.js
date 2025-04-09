@@ -142,8 +142,9 @@ const getRandomCategory = () => {
 };
 
 // Function to assign items to players
-const assignItems = (players) => {
+const assignItems = (players, imposterCount = 1) => {
   console.log('Assigning items to players:', players);
+  console.log('Imposter count:', imposterCount);
   const category = getRandomCategory();
   console.log('Selected category:', category);
   
@@ -152,9 +153,9 @@ const assignItems = (players) => {
   console.log('Main item:', mainItem);
   console.log('Imposter item:', imposterItem);
   
-  // Select 2 random imposters
+  // Select random imposters based on imposterCount
   const imposterIndices = [];
-  while (imposterIndices.length < 2 && imposterIndices.length < players.length) {
+  while (imposterIndices.length < imposterCount && imposterIndices.length < players.length) {
     const randomIndex = Math.floor(Math.random() * players.length);
     if (!imposterIndices.includes(randomIndex)) {
       imposterIndices.push(randomIndex);
@@ -294,8 +295,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('startGame', ({ gameId }) => {
+  socket.on('startGame', ({ gameId, imposterCount = 1 }) => {
     console.log('Starting game:', gameId);
+    console.log('Imposter count:', imposterCount);
     const game = games.get(gameId);
     if (!game) {
       console.error('Game not found:', gameId);
@@ -316,9 +318,10 @@ io.on('connection', (socket) => {
     game.items = [];
     game.category = '';
     game.imposterIds = [];
+    game.imposterCount = imposterCount;
 
     // Assign items to players
-    const { players: updatedPlayers, items, category, imposterIds } = assignItems(game.players);
+    const { players: updatedPlayers, items, category, imposterIds } = assignItems(game.players, imposterCount);
     game.players = updatedPlayers;
     game.items = items;
     game.category = category;
@@ -333,7 +336,8 @@ io.on('connection', (socket) => {
       })),
       imposterIds: game.imposterIds,
       items: game.items,
-      category: game.category
+      category: game.category,
+      imposterCount: game.imposterCount
     });
 
     // Emit game state to all players
@@ -345,7 +349,8 @@ io.on('connection', (socket) => {
       votes: game.votes,
       items: game.items,
       category: game.category,
-      imposterIds: game.imposterIds
+      imposterIds: game.imposterIds,
+      imposterCount: game.imposterCount
     });
   });
 

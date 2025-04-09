@@ -18,6 +18,12 @@ import {
   Spacer,
   Alert,
   AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  FormControl,
+  FormLabel,
+  RadioGroup,
+  Radio,
 } from '@chakra-ui/react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSocket } from '../context/SocketContext';
@@ -40,6 +46,7 @@ interface GameState {
   items: string[];
   category: string;
   imposterIds: string[];
+  imposterCount: number;
   winner?: 'imposters' | 'crewmates';
 }
 
@@ -68,6 +75,19 @@ export const Game: React.FC = () => {
   const [resultMessage, setResultMessage] = useState<string>('');
   const [imposterIds, setImposterIds] = useState<string[]>([]);
   const [gameCategory, setGameCategory] = useState<string>('');
+  const [imposterCount, setImposterCount] = useState<number>(1);
+
+  const [gameState, setGameState] = useState<GameState>({
+    players: [],
+    status: 'waiting',
+    currentRound: 0,
+    rounds: [],
+    votes: {},
+    items: [],
+    category: '',
+    imposterIds: [],
+    imposterCount: 1
+  });
 
   useEffect(() => {
     if (!socket || !gameId) return;
@@ -75,13 +95,14 @@ export const Game: React.FC = () => {
     console.log('Setting up socket listeners for game:', gameId);
     
     // Listen for gameState updates
-    socket.on('gameState', (gameState: GameState) => {
-      console.log('Received gameState:', gameState);
-      setPlayers(gameState.players);
-      setGameStatus(gameState.status);
+    socket.on('gameState', (newGameState: GameState) => {
+      console.log('Received gameState:', newGameState);
+      setGameState(newGameState);
+      setPlayers(newGameState.players);
+      setGameStatus(newGameState.status);
       
       // Check if current user is the host
-      const currentPlayer = gameState.players.find(p => p.id === socket.id);
+      const currentPlayer = newGameState.players.find(p => p.id === socket.id);
       console.log('Current player:', currentPlayer);
       setIsHost(currentPlayer?.isHost || false);
       
@@ -91,18 +112,22 @@ export const Game: React.FC = () => {
         setMyItem(currentPlayer.item);
         setMyCategory(currentPlayer.category || '');
       }
-      if (gameState.category) {
-        console.log('Setting game category:', gameState.category);
-        setGameCategory(gameState.category);
+      if (newGameState.category) {
+        console.log('Setting game category:', newGameState.category);
+        setGameCategory(newGameState.category);
       }
-      if (gameState.imposterIds) {
-        console.log('Setting imposter IDs:', gameState.imposterIds);
-        setImposterIds(gameState.imposterIds);
+      if (newGameState.imposterIds) {
+        console.log('Setting imposter IDs:', newGameState.imposterIds);
+        setImposterIds(newGameState.imposterIds);
+      }
+      if (newGameState.imposterCount) {
+        console.log('Setting imposter count:', newGameState.imposterCount);
+        setImposterCount(newGameState.imposterCount);
       }
 
       // Update votedFor state based on game votes
-      if (gameState.votes && socket.id && gameState.votes[socket.id]) {
-        setVotedFor(gameState.votes[socket.id]);
+      if (newGameState.votes && socket.id && newGameState.votes[socket.id]) {
+        setVotedFor(newGameState.votes[socket.id]);
       } else {
         setVotedFor(null);
       }
@@ -159,19 +184,7 @@ export const Game: React.FC = () => {
 
   const handleStartGame = () => {
     if (!socket || !gameId) return;
-    
-    if (players.length < 3) {
-      toast({
-        title: 'Not enough players',
-        description: 'You need at least 3 players to start the game',
-        status: 'warning',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-    
-    socket.emit('startGame', { gameId });
+    socket.emit('startGame', { gameId, imposterCount });
   };
 
   const handleVote = (playerId: string) => {
@@ -265,7 +278,53 @@ export const Game: React.FC = () => {
           </Button>
         </Flex>
         
-        {gameStatus === 'playing' ? (
+        {gameStatus === 'waiting' ? (
+          <Box p={6} borderWidth={1} borderRadius="lg" boxShadow="md">
+            <VStack spacing={4} align="stretch">
+              <Heading size="md">Players in Room</Heading>
+              <List spacing={2}>
+                {players.map((player) => (
+                  <ListItem key={player.id}>
+                    <Flex align="center">
+                      <Text>{player.name}</Text>
+                      {player.isHost && (
+                        <Badge ml={2} colorScheme="purple">Host</Badge>
+                      )}
+                    </Flex>
+                  </ListItem>
+                ))}
+              </List>
+              {isHost && (
+                <VStack spacing={4} align="stretch">
+                  <FormControl>
+                    <FormLabel>Number of Imposters</FormLabel>
+                    <RadioGroup 
+                      value={imposterCount.toString()} 
+                      onChange={(value) => setImposterCount(parseInt(value))}
+                    >
+                      <HStack spacing={4}>
+                        <Radio value="1">1 Imposter</Radio>
+                        <Radio value="2">2 Imposters</Radio>
+                      </HStack>
+                    </RadioGroup>
+                  </FormControl>
+                  <Button 
+                    colorScheme="blue" 
+                    onClick={handleStartGame}
+                    isDisabled={players.length < 3}
+                  >
+                    Start Game
+                  </Button>
+                  {players.length < 3 && (
+                    <Text color="red.500" fontSize="sm">
+                      Need at least 3 players to start the game
+                    </Text>
+                  )}
+                </VStack>
+              )}
+            </VStack>
+          </Box>
+        ) : gameStatus === 'playing' ? (
           <Grid templateColumns={{ base: "1fr", md: "1fr 2fr" }} gap={6}>
             <GridItem>
               <Box p={6} borderWidth={1} borderRadius="lg" boxShadow="md" h="100%">
@@ -275,14 +334,36 @@ export const Game: React.FC = () => {
                     {myItem}
                   </Text>
                   {imposterIds.includes(socket?.id || '') && (
-                    <Alert status="warning" borderRadius="md">
-                      <AlertIcon />
-                      You are an imposter! Your item is different from others. Try to blend in and avoid being voted out.
-                      {imposterIds.length > 1 && (
-                        <Text mt={2}>
-                          Your fellow imposter is: {players.find(p => imposterIds.includes(p.id) && p.id !== socket?.id)?.name}
-                        </Text>
-                      )}
+                    <Alert 
+                      status="warning" 
+                      borderRadius="md"
+                      flexDirection="column"
+                      alignItems="flex-start"
+                      gap={2}
+                    >
+                      <Flex>
+                        <AlertIcon />
+                        <AlertTitle>You are an imposter!</AlertTitle>
+                      </Flex>
+                      <AlertDescription>
+                        <VStack align="stretch" spacing={2}>
+                          <Text>Your item is different from others. Try to blend in and avoid being voted out.</Text>
+                          {imposterCount > 1 && (
+                            <Box>
+                              <Text fontWeight="bold">Your fellow imposters:</Text>
+                              <List spacing={1} mt={1}>
+                                {players
+                                  .filter(p => imposterIds.includes(p.id) && p.id !== socket?.id)
+                                  .map(p => (
+                                    <ListItem key={p.id}>
+                                      {p.name}
+                                    </ListItem>
+                                  ))}
+                              </List>
+                            </Box>
+                          )}
+                        </VStack>
+                      </AlertDescription>
                     </Alert>
                   )}
                   <Text fontSize="sm" color="gray.600">
@@ -336,35 +417,35 @@ export const Game: React.FC = () => {
               </Box>
             </GridItem>
           </Grid>
-        ) : (
-          <Box p={8} borderWidth={1} borderRadius="lg" boxShadow="md" textAlign="center">
-            <VStack spacing={4}>
-              <Heading size="md">Waiting for players to join...</Heading>
-              <Text>Share the game code with your friends: <Text as="span" fontWeight="bold">{gameId}</Text></Text>
-              <Text>Players joined: {players.length}/3 minimum required</Text>
-              
-              {isHost ? (
-                <>
-                  {players.length < 3 ? (
-                    <Alert status="warning" borderRadius="md">
-                      <AlertIcon />
-                      Waiting for more players to join (minimum 3 required)
-                    </Alert>
-                  ) : (
-                    <Button colorScheme="green" size="lg" onClick={handleStartGame}>
-                      Start Game
-                    </Button>
-                  )}
-                </>
-              ) : (
-                <Alert status="info" borderRadius="md">
-                  <AlertIcon />
-                  Waiting for the host to start the game
-                </Alert>
-              )}
+        ) : gameStatus === 'finished' ? (
+          <Box p={6} borderWidth={1} borderRadius="lg" boxShadow="md">
+            <VStack spacing={4} align="center">
+              <Heading size="lg">
+                {gameState.winner === 'imposters' ? 'Imposters Win!' : 'Crewmates Win!'}
+              </Heading>
+              <Text>
+                {gameState.winner === 'imposters' 
+                  ? 'The imposters successfully blended in and survived!'
+                  : 'The crewmates successfully identified and eliminated the imposters!'}
+              </Text>
+              <Box>
+                <Text fontSize="lg" fontWeight="bold">The Imposters were:</Text>
+                <List spacing={2} mt={2}>
+                  {players
+                    .filter(player => imposterIds.includes(player.id))
+                    .map(player => (
+                      <ListItem key={player.id}>
+                        {player.name}
+                      </ListItem>
+                    ))}
+                </List>
+              </Box>
+              <Button colorScheme="blue" onClick={() => navigate('/')}>
+                Return to Home
+              </Button>
             </VStack>
           </Box>
-        )}
+        ) : null}
       </VStack>
     </Container>
   );
