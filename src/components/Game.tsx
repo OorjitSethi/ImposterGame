@@ -290,7 +290,9 @@ export const Game: React.FC = () => {
                         >
                           <VStack align="stretch" spacing={2}>
                             <Flex justify="space-between" align="center">
-                              <Text fontWeight="bold">{player.name}</Text>
+                              <Text fontWeight="bold" color={player.id === imposterId ? 'red.500' : 'black'}>
+                                {player.name}
+                              </Text>
                               <Badge colorScheme={player.isHost ? 'purple' : 'green'}>
                                 {player.isHost ? 'Host' : 'Player'}
                               </Badge>
