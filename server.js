@@ -62,10 +62,15 @@ const assignMovies = (players) => {
   const imposterMovie = getRandomMovies(1)[0];
   const imposterIndex = Math.floor(Math.random() * players.length);
   
-  return players.map((player, index) => ({
+  const updatedPlayers = players.map((player, index) => ({
     ...player,
     movie: index === imposterIndex ? imposterMovie : mainMovie
   }));
+
+  return {
+    players: updatedPlayers,
+    movies: [mainMovie, imposterMovie]
+  };
 };
 
 io.on('connection', (socket) => {
@@ -183,11 +188,11 @@ io.on('connection', (socket) => {
     if (!game) return;
 
     // Assign movies to players
-    const updatedPlayers = assignMovies(game.players);
+    const { players: updatedPlayers, movies } = assignMovies(game.players);
     game.players = updatedPlayers;
     game.status = 'playing';
     game.votes = {};
-    game.movies = [mainMovie, imposterMovie];
+    game.movies = movies;
 
     io.to(gameId).emit('gameState', {
       players: game.players,
