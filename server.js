@@ -56,6 +56,18 @@ const getRandomMovies = (count) => {
   return shuffled.slice(0, count);
 };
 
+// Function to assign movies to players
+const assignMovies = (players) => {
+  const mainMovie = getRandomMovies(1)[0];
+  const imposterMovie = getRandomMovies(1)[0];
+  const imposterIndex = Math.floor(Math.random() * players.length);
+  
+  return players.map((player, index) => ({
+    ...player,
+    movie: index === imposterIndex ? imposterMovie : mainMovie
+  }));
+};
+
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
@@ -167,44 +179,24 @@ io.on('connection', (socket) => {
   });
 
   socket.on('startGame', ({ gameId }) => {
-    try {
-      const game = games.get(gameId);
-      if (!game) {
-        socket.emit('error', { message: 'Game not found' });
-        return;
-      }
-      
-      // Check if the player is the host
-      const isHost = game.players.some(p => p.id === socket.id && p.isHost);
-      if (!isHost) {
-        socket.emit('error', { message: 'Only the host can start the game' });
-        return;
-      }
-      
-      // Check if there are enough players
-      if (game.players.length < MIN_PLAYERS) {
-        socket.emit('error', { message: `Need at least ${MIN_PLAYERS} players to start the game` });
-        return;
-      }
-      
-      // Select random movies for each player
-      const movies = getRandomMovies(game.players.length);
-      game.movies = movies;
-      
-      // Assign movies to players
-      game.players.forEach((player, index) => {
-        player.movie = movies[index];
-      });
-      
-      // Start the game
-      game.status = 'playing';
-      game.votes = {};
-      io.to(gameId).emit('gameState', game);
-      console.log(`Game ${gameId} started with ${game.players.length} players`);
-    } catch (error) {
-      console.error('Error starting game:', error);
-      socket.emit('error', { message: 'Failed to start game' });
-    }
+    const game = games.get(gameId);
+    if (!game) return;
+
+    // Assign movies to players
+    const updatedPlayers = assignMovies(game.players);
+    game.players = updatedPlayers;
+    game.status = 'playing';
+    game.votes = {};
+    game.movies = [mainMovie, imposterMovie];
+
+    io.to(gameId).emit('gameState', {
+      players: game.players,
+      status: game.status,
+      currentRound: game.currentRound,
+      rounds: game.rounds,
+      votes: game.votes,
+      movies: game.movies
+    });
   });
 
   socket.on('vote', ({ gameId, votedForId }) => {
